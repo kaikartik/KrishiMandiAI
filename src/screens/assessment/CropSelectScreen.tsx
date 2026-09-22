@@ -7,11 +7,22 @@ import {
   View,
 } from 'react-native';
 
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import type { RootStackParamList } from '../../navigation/AppNavigator';
+
 import { colors } from '../../styles/colors';
 import { spacing } from '../../styles/spacing';
 import { typography } from '../../styles/typography';
 
-export default function CropSelectScreen() {
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'CropSelect'
+>;
+
+export default function CropSelectScreen({
+  navigation,
+}: Props) {
   return (
     <ScrollView
       style={styles.screen}
@@ -24,11 +35,23 @@ export default function CropSelectScreen() {
       </Text>
 
       <View style={styles.cropList}>
-        <Pressable style={styles.cropCard}>
+        <Pressable
+          style={styles.cropCard}
+          onPress={() =>
+            navigation.navigate('AssessmentType', {
+              cropId:
+                'b96cd07f-70b4-41bb-99af-8262fdb0ebf0',
+              cropName: 'Rice',
+            })
+          }
+        >
           <Text style={styles.cropIcon}>🌾</Text>
 
           <View style={styles.cropInfo}>
-            <Text style={styles.cropName}>Rice</Text>
+            <Text style={styles.cropName}>
+              Rice
+            </Text>
+
             <Text style={styles.cropDescription}>
               Grain quality assessment
             </Text>
@@ -39,7 +62,10 @@ export default function CropSelectScreen() {
           <Text style={styles.cropIcon}>🌾</Text>
 
           <View style={styles.cropInfo}>
-            <Text style={styles.cropName}>Wheat</Text>
+            <Text style={styles.cropName}>
+              Wheat
+            </Text>
+
             <Text style={styles.cropDescription}>
               Coming soon
             </Text>
@@ -50,7 +76,10 @@ export default function CropSelectScreen() {
           <Text style={styles.cropIcon}>🫘</Text>
 
           <View style={styles.cropInfo}>
-            <Text style={styles.cropName}>Pulses</Text>
+            <Text style={styles.cropName}>
+              Pulses
+            </Text>
+
             <Text style={styles.cropDescription}>
               Coming soon
             </Text>

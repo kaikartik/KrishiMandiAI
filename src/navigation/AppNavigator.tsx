@@ -18,16 +18,51 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 
 import CropSelectScreen from '../screens/assessment/CropSelectScreen';
+import AssessmentTypeScreen from '../screens/assessment/AssessmentTypeScreen';
+import SamplePrepScreen from '../screens/assessment/SamplePrepScreen';
+import CameraScreen from '../screens/assessment/CameraScreen';
+import ProcessingScreen from '../screens/assessment/ProcessingScreen';
+import ResultScreen from '../screens/assessment/ResultScreen';
 
 import HomeScreen from '../screens/home/HomeScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
+
   Onboarding: undefined;
+
   Login: undefined;
+
   SignUp: undefined;
+
   Home: undefined;
+
   CropSelect: undefined;
+
+  AssessmentType: {
+    cropId: string;
+    cropName: string;
+  };
+
+  SamplePrep: {
+    cropId: string;
+    cropName: string;
+  };
+
+  Camera: {
+    cropId: string;
+    cropName: string;
+  };
+
+  Processing: {
+    imageUri: string;
+    cropId: string;
+    cropName: string;
+  };
+
+  Result: {
+    assessmentId: string;
+  };
 };
 
 const Stack =
@@ -78,24 +113,47 @@ export default function AppNavigator() {
     <NavigationContainer>
       {session ? (
         <Stack.Navigator
-  initialRouteName="Home"
-  screenOptions={{
-    headerShown: false,
-    animation: 'slide_from_right',
-  }}
->
-  <Stack.Screen
-    name="Home"
-    component={HomeScreen}
-  />
+          initialRouteName="Home"
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        >
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
+          />
 
-  <Stack.Screen
-    name="CropSelect"
-    component={CropSelectScreen}
-  />
-</Stack.Navigator>
+          <Stack.Screen
+            name="CropSelect"
+            component={CropSelectScreen}
+          />
 
+          <Stack.Screen
+            name="AssessmentType"
+            component={AssessmentTypeScreen}
+          />
 
+          <Stack.Screen
+            name="SamplePrep"
+            component={SamplePrepScreen}
+          />
+
+          <Stack.Screen
+            name="Camera"
+            component={CameraScreen}
+          />
+
+          <Stack.Screen
+            name="Processing"
+            component={ProcessingScreen}
+          />
+
+          <Stack.Screen
+            name="Result"
+            component={ResultScreen}
+          />
+        </Stack.Navigator>
       ) : (
         <Stack.Navigator
           initialRouteName={
