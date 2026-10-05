@@ -61,8 +61,17 @@ export type RootStackParamList = {
   };
 
   Result: {
-    assessmentId: string;
+    result: {
+      grain_coverage: number;
+      damaged_grains: number;
+      broken_grains: number;
+      foreign_material: number;
+      quality_score: number;
+      quality_grade: string;
+      analysis_engine: string;
+    };
   };
+  
 };
 
 const Stack =

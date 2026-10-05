@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,8 +10,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 
-import { supabase } from '../../services/supabase/client';
-
 import { colors } from '../../styles/colors';
 import { spacing } from '../../styles/spacing';
 
@@ -21,112 +18,10 @@ type Props = NativeStackScreenProps<
   'Result'
 >;
 
-type AnalysisResult = {
-  grain_coverage: number | null;
-  damaged_grains: number | null;
-  broken_grains: number | null;
-  foreign_material: number | null;
-  quality_score: number | null;
-  quality_grade: string | null;
-  analysis_engine: string;
-};
-
 export default function ResultScreen({
   route,
 }: Props) {
-  const { assessmentId } = route.params;
-
-  const [result, setResult] =
-    useState<AnalysisResult | null>(null);
-
-  const [loading, setLoading] = useState(true);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadResult = async () => {
-      try {
-        const {
-          data,
-          error: resultError,
-        } = await supabase
-          .from('analysis_results')
-          .select(
-            `
-              grain_coverage,
-              damaged_grains,
-              broken_grains,
-              foreign_material,
-              quality_score,
-              quality_grade,
-              analysis_engine
-            `,
-          )
-          .eq('assessment_id', assessmentId)
-          .single();
-
-        if (resultError) {
-          throw new Error(
-            resultError.message,
-          );
-        }
-
-        if (!cancelled) {
-          setResult(data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Unable to load analysis.',
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadResult();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [assessmentId]);
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator
-          size="large"
-          color={colors.primary}
-        />
-
-        <Text style={styles.loadingText}>
-          Loading analysis...
-        </Text>
-      </View>
-    );
-  }
-
-  if (error || !result) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorTitle}>
-          Unable to load result
-        </Text>
-
-        <Text style={styles.errorText}>
-          {error || 'No analysis result was found.'}
-        </Text>
-      </View>
-    );
-  }
+  const { result } = route.params;
 
   return (
     <ScrollView
@@ -147,11 +42,11 @@ export default function ResultScreen({
         </Text>
 
         <Text style={styles.grade}>
-          {result.quality_grade || '--'}
+          {result.quality_grade}
         </Text>
 
         <Text style={styles.score}>
-          {result.quality_score ?? '--'}/100
+          {result.quality_score}/100
         </Text>
       </View>
 
@@ -166,7 +61,7 @@ export default function ResultScreen({
           </Text>
 
           <Text style={styles.statValue}>
-            {result.grain_coverage ?? '--'}%
+            {result.grain_coverage}%
           </Text>
         </View>
 
@@ -176,7 +71,7 @@ export default function ResultScreen({
           </Text>
 
           <Text style={styles.statValue}>
-            {result.damaged_grains ?? '--'}%
+            {result.damaged_grains}%
           </Text>
         </View>
 
@@ -186,7 +81,7 @@ export default function ResultScreen({
           </Text>
 
           <Text style={styles.statValue}>
-            {result.broken_grains ?? '--'}%
+            {result.broken_grains}%
           </Text>
         </View>
 
@@ -196,7 +91,7 @@ export default function ResultScreen({
           </Text>
 
           <Text style={styles.statValue}>
-            {result.foreign_material ?? '--'}%
+            {result.foreign_material}%
           </Text>
         </View>
       </View>
@@ -207,9 +102,7 @@ export default function ResultScreen({
         </Text>
 
         <Text style={styles.engineValue}>
-          {result.analysis_engine === 'prototype'
-            ? 'Prototype analysis'
-            : result.analysis_engine}
+          On-device ONNX
         </Text>
       </View>
     </ScrollView>
@@ -226,33 +119,6 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     paddingTop: spacing.xxxl,
     paddingBottom: spacing.xxxl,
-  },
-
-  centered: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-
-  loadingText: {
-    color: colors.textSecondary,
-    marginTop: spacing.lg,
-    fontSize: 15,
-  },
-
-  errorTitle: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-
-  errorText: {
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-    textAlign: 'center',
   },
 
   eyebrow: {
@@ -347,3 +213,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 });
+

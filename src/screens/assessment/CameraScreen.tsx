@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+
 import {
   Image,
   Pressable,
@@ -14,17 +19,34 @@ import {
   usePhotoOutput,
 } from 'react-native-vision-camera';
 
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type {
+  NativeStackScreenProps,
+} from '@react-navigation/native-stack';
 
-import type { RootStackParamList } from '../../navigation/AppNavigator';
-
-import { colors } from '../../styles/colors';
-import { spacing } from '../../styles/spacing';
-
-type Props = NativeStackScreenProps<
+import type {
   RootStackParamList,
-  'Camera'
->;
+} from '../../navigation/AppNavigator';
+
+import {
+  colors,
+} from '../../styles/colors';
+
+import {
+  spacing,
+} from '../../styles/spacing';
+
+type Props =
+  NativeStackScreenProps<
+    RootStackParamList,
+    'Camera'
+  >;
+
+type LayoutRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 export default function CameraScreen({
   navigation,
@@ -41,29 +63,46 @@ export default function CameraScreen({
   const {
     hasPermission,
     requestPermission,
-  } = useCameraPermission();
+  } =
+    useCameraPermission();
 
   const photoOutput =
     usePhotoOutput({
       containerFormat: 'jpeg',
       quality: 0.9,
-      qualityPrioritization: 'balanced',
+      qualityPrioritization:
+        'balanced',
     });
 
   const [
     capturedPhoto,
     setCapturedPhoto,
-  ] = useState<string | null>(null);
+  ] =
+    useState<string | null>(null);
+
+  const [
+    analysisPhoto,
+    setAnalysisPhoto,
+  ] =
+    useState<string | null>(null);
 
   const [
     isCapturing,
     setIsCapturing,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     captureError,
     setCaptureError,
-  ] = useState<string | null>(null);
+  ] =
+    useState<string | null>(null);
+
+  const previewRef =
+    useRef<any>(null);
+
+  const guideFrameRef =
+    useRef<any>(null);
 
   useEffect(() => {
     if (!hasPermission) {
@@ -74,79 +113,366 @@ export default function CameraScreen({
     requestPermission,
   ]);
 
-  const handleCapture = async () => {
-    if (isCapturing) {
-      return;
-    }
+  const measureGuideAndPreview =
+    (): Promise<{
+      preview: LayoutRect;
+      guide: LayoutRect;
+    }> => {
+      return new Promise(
+        (
+          resolve,
+          reject,
+        ) => {
+          if (
+            !previewRef.current ||
+            !guideFrameRef.current
+          ) {
+            reject(
+              new Error(
+                'Camera guide layout is not available.',
+              ),
+            );
+            return;
+          }
 
-    try {
-      setCaptureError(null);
-      setIsCapturing(true);
+          let previewRect:
+            LayoutRect | null = null;
 
-      const photoFile =
-        await photoOutput.capturePhotoToFile(
-          {
-            flashMode: 'off',
-            enableShutterSound: true,
-          },
-          {},
+          let guideRect:
+            LayoutRect | null = null;
+
+          const finish = () => {
+            if (
+              previewRect &&
+              guideRect
+            ) {
+              resolve({
+                preview: previewRect,
+                guide: guideRect,
+              });
+            }
+          };
+
+          previewRef.current.measureInWindow(
+            (
+              x: number,
+              y: number,
+              width: number,
+              height: number,
+            ) => {
+              previewRect = {
+                x,
+                y,
+                width,
+                height,
+              };
+
+              finish();
+            },
+          );
+
+          guideFrameRef.current.measureInWindow(
+            (
+              x: number,
+              y: number,
+              width: number,
+              height: number,
+            ) => {
+              guideRect = {
+                x,
+                y,
+                width,
+                height,
+              };
+
+              finish();
+            },
+          );
+        },
+      );
+    };
+
+  const handleCapture =
+    async () => {
+      if (isCapturing) {
+        return;
+      }
+
+      try {
+        setCaptureError(null);
+        setIsCapturing(true);
+
+        const {
+          preview,
+          guide,
+        } =
+          await measureGuideAndPreview();
+
+        console.log(
+          '[Camera] Actual preview window:',
+          `x=${preview.x}`,
+          `y=${preview.y}`,
+          `width=${preview.width}`,
+          `height=${preview.height}`,
         );
 
+        console.log(
+          '[Camera] Actual guide window:',
+          `x=${guide.x}`,
+          `y=${guide.y}`,
+          `width=${guide.width}`,
+          `height=${guide.height}`,
+        );
+
+        const guideInPreview = {
+          x: guide.x - preview.x,
+          y: guide.y - preview.y,
+          width: guide.width,
+          height: guide.height,
+        };
+
+        console.log(
+          '[Camera] Guide inside preview:',
+          `x=${guideInPreview.x}`,
+          `y=${guideInPreview.y}`,
+          `width=${guideInPreview.width}`,
+          `height=${guideInPreview.height}`,
+        );
+
+        const photo =
+          await photoOutput.capturePhoto(
+            {
+              flashMode: 'off',
+              enableShutterSound: true,
+            },
+            {},
+          );
+
+        console.log(
+          'Photo captured:',
+          photo,
+        );
+
+        console.log(
+          '[Camera] Photo orientation:',
+          photo.orientation,
+          'mirrored:',
+          photo.isMirrored,
+          'size:',
+          photo.width,
+          'x',
+          photo.height,
+        );
+
+        const image =
+          await photo.toImageAsync();
+
+        console.log(
+          '[Camera] Oriented image:',
+          image.width,
+          'x',
+          image.height,
+        );
+
+        const scale =
+          Math.max(
+            preview.width / image.width,
+            preview.height / image.height,
+          );
+
+        const displayedWidth =
+          image.width * scale;
+
+        const displayedHeight =
+          image.height * scale;
+
+        const offsetX =
+          (
+            preview.width -
+            displayedWidth
+          ) / 2;
+
+        const offsetY =
+          (
+            preview.height -
+            displayedHeight
+          ) / 2;
+
+        console.log(
+          '[Camera] Image display mapping:',
+          'scale=',
+          scale,
+          'displayed=',
+          displayedWidth,
+          'x',
+          displayedHeight,
+          'offset=',
+          offsetX,
+          ',',
+          offsetY,
+        );
+
+        const sourceLeft =
+          Math.max(
+            0,
+            Math.floor(
+              (
+                guideInPreview.x -
+                offsetX
+              ) / scale,
+            ),
+          );
+
+        const sourceTop =
+          Math.max(
+            0,
+            Math.floor(
+              (
+                guideInPreview.y -
+                offsetY
+              ) / scale,
+            ),
+          );
+
+        const sourceRight =
+          Math.min(
+            image.width,
+            Math.ceil(
+              (
+                guideInPreview.x +
+                guideInPreview.width -
+                offsetX
+              ) / scale,
+            ),
+          );
+
+        const sourceBottom =
+          Math.min(
+            image.height,
+            Math.ceil(
+              (
+                guideInPreview.y +
+                guideInPreview.height -
+                offsetY
+              ) / scale,
+            ),
+          );
+
+        const cropWidth =
+          sourceRight - sourceLeft;
+
+        const cropHeight =
+          sourceBottom - sourceTop;
+
+        console.log(
+          '[Camera] ROI:',
+          `x=${sourceLeft}`,
+          `y=${sourceTop}`,
+          `width=${cropWidth}`,
+          `height=${cropHeight}`,
+        );
+
+        if (
+          cropWidth <= 10 ||
+          cropHeight <= 10
+        ) {
+          photo.dispose();
+
+          throw new Error(
+            'Invalid camera analysis region.',
+          );
+        }
+
+        const cropped =
+          await image.cropAsync(
+            sourceLeft,
+            sourceTop,
+            sourceRight,
+            sourceBottom,
+          );
+
+        console.log(
+          '[Camera] Cropped image:',
+          cropped.width,
+          'x',
+          cropped.height,
+        );
+
+        const croppedPath =
+          await cropped.saveToTemporaryFileAsync(
+            'jpg',
+            95,
+          );
+
+        console.log(
+          '[Camera] Analysis image:',
+          croppedPath,
+        );
+
+        const capturedPhotoPath =
+          await photo.saveToTemporaryFileAsync();
+
+        console.log(
+          '[Camera] Captured photo:',
+          capturedPhotoPath,
+        );
+
+        setCapturedPhoto(
+          `file://${capturedPhotoPath}`,
+        );
+
+        setAnalysisPhoto(
+          `file://${croppedPath}`,
+        );
+
+        photo.dispose();
+      } catch (error) {
+        console.error(
+          '[Camera] Failed to capture/process photo:',
+          error,
+        );
+
+        setCaptureError(
+          'Unable to prepare the photo. Please try again.',
+        );
+      } finally {
+        setIsCapturing(false);
+      }
+    };
+
+  const handleRetake =
+    () => {
+      setCapturedPhoto(null);
+      setAnalysisPhoto(null);
+      setCaptureError(null);
+    };
+
+  const handleUsePhoto =
+    () => {
+      if (!analysisPhoto) {
+        return;
+      }
+
       console.log(
-        'Photo captured:',
-        photoFile.filePath,
+        '[Camera] Photo ready for local ML:',
+        analysisPhoto,
       );
 
-      const photoUri =
-        `file://${photoFile.filePath}`;
-
-      setCapturedPhoto(photoUri);
-    } catch (error) {
-      console.error(
-        'Failed to capture photo:',
-        error,
+      navigation.navigate(
+        'Processing',
+        {
+          imageUri: analysisPhoto,
+          cropId,
+          cropName,
+        },
       );
-
-      setCaptureError(
-        'Unable to capture the photo. Please try again.',
-      );
-    } finally {
-      setIsCapturing(false);
-    }
-  };
-
-  const handleRetake = () => {
-    setCapturedPhoto(null);
-    setCaptureError(null);
-  };
-
-  const handleUsePhoto = () => {
-    if (!capturedPhoto) {
-      return;
-    }
-
-    console.log(
-      'Photo ready for AI processing:',
-      capturedPhoto,
-    );
-
-    navigation.navigate('Processing', {
-      imageUri: capturedPhoto,
-      cropId,
-      cropName,
-    });
-  };
+    };
 
   if (!hasPermission) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.title}>
-          Camera Permission Required
-        </Text>
-
-        <Text style={styles.description}>
-          KrishiMandi AI needs access to your camera
-          to capture the grain sample.
+        <Text style={styles.message}>
+          Camera permission is required.
         </Text>
 
         <Pressable
@@ -164,12 +490,8 @@ export default function CameraScreen({
   if (!device) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.title}>
-          Camera Unavailable
-        </Text>
-
-        <Text style={styles.description}>
-          No compatible camera was found on this device.
+        <Text style={styles.message}>
+          Camera unavailable.
         </Text>
       </View>
     );
@@ -179,50 +501,74 @@ export default function CameraScreen({
     return (
       <View style={styles.container}>
         <Image
-          source={{ uri: capturedPhoto }}
+          source={{
+            uri: capturedPhoto,
+          }}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
+          resizeMode="contain"
         />
 
-        <View style={styles.previewOverlay}>
-          <View style={styles.previewTopBar}>
-            <Pressable
-              style={styles.backButton}
-              onPress={handleRetake}
-            >
-              <Text style={styles.backText}>
-                ‹
-              </Text>
-            </Pressable>
-
-            <Text style={styles.headerTitle}>
-              Review Grain Sample
+        <View
+          style={styles.previewOverlay}
+          pointerEvents="box-none"
+        >
+          <View style={styles.previewTop}>
+            <Text style={styles.previewTitle}>
+              Captured sample
             </Text>
 
-            <View style={styles.placeholder} />
+            <Text style={styles.previewSubtitle}>
+              Original camera photo
+            </Text>
           </View>
 
-          <View style={styles.previewBottomArea}>
-            <Text style={styles.previewText}>
-              Sample captured successfully
-            </Text>
+          {analysisPhoto && (
+            <View style={styles.analysisPreview}>
+              <Text style={styles.analysisLabel}>
+                ACTUAL ANALYSIS CROP
+              </Text>
 
-            <View style={styles.previewActions}>
+              <View style={styles.analysisImageFrame}>
+                <Image
+                  source={{
+                    uri: analysisPhoto,
+                  }}
+                  style={styles.analysisImage}
+                  resizeMode="contain"
+                />
+              </View>
+
+              <Text style={styles.analysisHint}>
+                This exact image will be sent
+                to the offline ML model.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.previewBottom}>
+            {captureError && (
+              <Text style={styles.errorText}>
+                {captureError}
+              </Text>
+            )}
+
+            <View style={styles.actionRow}>
               <Pressable
-                style={styles.retakeButton}
+                style={styles.secondaryButton}
                 onPress={handleRetake}
               >
-                <Text style={styles.retakeButtonText}>
+                <Text style={styles.secondaryButtonText}>
                   Retake
                 </Text>
               </Pressable>
 
               <Pressable
-                style={styles.usePhotoButton}
+                style={styles.primaryButton}
                 onPress={handleUsePhoto}
+                disabled={!analysisPhoto}
               >
-                <Text style={styles.usePhotoButtonText}>
-                  Use Photo
+                <Text style={styles.primaryButtonText}>
+                  Analyze Sample
                 </Text>
               </Pressable>
             </View>
@@ -233,7 +579,10 @@ export default function CameraScreen({
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      ref={previewRef}
+      style={styles.container}
+    >
       <Camera
         style={StyleSheet.absoluteFill}
         device={device}
@@ -241,281 +590,271 @@ export default function CameraScreen({
         outputs={[photoOutput]}
       />
 
-      <View style={styles.overlay}>
+      <View
+        style={styles.overlay}
+        pointerEvents="box-none"
+      >
         <View style={styles.topBar}>
-          <Pressable
-            style={styles.backButton}
-            onPress={() =>
-              navigation.goBack()
-            }
-          >
-            <Text style={styles.backText}>
-              ‹
-            </Text>
-          </Pressable>
-
-          <Text style={styles.headerTitle}>
-            Capture Grain Sample
+          <Text style={styles.title}>
+            {cropName}
           </Text>
 
-          <View style={styles.placeholder} />
+          <Text style={styles.subtitle}>
+            Offline quality assessment
+          </Text>
         </View>
 
         <View style={styles.guideArea}>
-          <View style={styles.guideFrame} />
+          <View
+            ref={guideFrameRef}
+            style={styles.guideFrame}
+          />
 
           <Text style={styles.guideText}>
-            Spread grains in a single layer
+            Spread grains in a
+            single layer
           </Text>
 
           <Text style={styles.guideSubtext}>
-            Keep the sample inside the frame
+            Keep the sample inside
+            the frame
           </Text>
         </View>
 
         <View style={styles.bottomArea}>
-          {captureError ? (
+          {captureError && (
             <Text style={styles.errorText}>
               {captureError}
-            </Text>
-          ) : (
-            <Text style={styles.statusText}>
-              {isCapturing
-                ? 'Capturing...'
-                : 'Camera ready'}
             </Text>
           )}
 
           <Pressable
-            style={[
-              styles.captureButton,
-              isCapturing &&
-                styles.captureButtonDisabled,
-            ]}
+            style={styles.captureButton}
             onPress={handleCapture}
             disabled={isCapturing}
           >
             <View style={styles.captureInner} />
           </Pressable>
+
+          <Text style={styles.captureHint}>
+            {isCapturing
+              ? 'Preparing sample...'
+              : 'Tap to capture'}
+          </Text>
         </View>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: '#000000',
+    },
 
-  overlay: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+      backgroundColor: colors.background,
+    },
 
-  topBar: {
-    paddingTop: spacing.xxxl,
-    paddingHorizontal: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    message: {
+      color: colors.text,
+      fontSize: 16,
+      textAlign: 'center',
+      marginBottom: spacing.lg,
+    },
 
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    button: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+    },
 
-  backText: {
-    color: colors.white,
-    fontSize: 34,
-    fontWeight: '300',
-    lineHeight: 38,
-  },
+    buttonText: {
+      color: colors.white,
+      fontWeight: '700',
+    },
 
-  headerTitle: {
-    color: colors.white,
-    fontSize: 17,
-    fontWeight: '600',
-  },
+    overlay: {
+      flex: 1,
+      justifyContent: 'space-between',
+    },
 
-  placeholder: {
-    width: 44,
-  },
+    topBar: {
+      paddingTop: spacing.xl,
+      paddingHorizontal: spacing.lg,
+    },
 
-  guideArea: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    title: {
+      color: colors.white,
+      fontSize: 22,
+      fontWeight: '800',
+    },
 
-  guideFrame: {
-    width: '82%',
-    aspectRatio: 1.25,
-    borderWidth: 2,
-    borderColor: colors.white,
-    borderRadius: 18,
-  },
+    subtitle: {
+      color: colors.white,
+      opacity: 0.8,
+      marginTop: 4,
+      fontSize: 13,
+    },
 
-  guideText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: spacing.lg,
-  },
+    guideArea: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  guideSubtext: {
-    color: '#E5E5E5',
-    fontSize: 13,
-    marginTop: spacing.xs,
-  },
+    guideFrame: {
+      width: '82%',
+      aspectRatio: 1.25,
+      borderWidth: 2,
+      borderColor: colors.white,
+      borderRadius: 18,
+    },
 
-  bottomArea: {
-    alignItems: 'center',
-    paddingBottom: spacing.xxxl,
-  },
+    guideText: {
+      color: colors.white,
+      fontSize: 15,
+      fontWeight: '700',
+      marginTop: spacing.md,
+    },
 
-  statusText: {
-    color: colors.white,
-    fontSize: 13,
-    marginBottom: spacing.md,
-  },
+    guideSubtext: {
+      color: colors.white,
+      opacity: 0.8,
+      fontSize: 12,
+      marginTop: 4,
+    },
 
-  errorText: {
-    color: '#FFB4AB',
-    fontSize: 13,
-    marginBottom: spacing.md,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-  },
+    bottomArea: {
+      alignItems: 'center',
+      paddingBottom: spacing.xl,
+    },
 
-  captureButton: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 4,
-    borderColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    captureButton: {
+      width: 76,
+      height: 76,
+      borderRadius: 38,
+      borderWidth: 4,
+      borderColor: colors.white,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-  captureButtonDisabled: {
-    opacity: 0.45,
-  },
+    captureInner: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      backgroundColor: colors.white,
+    },
 
-  captureInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.white,
-  },
+    captureHint: {
+      color: colors.white,
+      marginTop: spacing.sm,
+      fontSize: 13,
+    },
 
-  previewOverlay: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
+    previewOverlay: {
+      flex: 1,
+      justifyContent: 'space-between',
+      padding: spacing.lg,
+    },
 
-  previewTopBar: {
-    paddingTop: spacing.xxxl,
-    paddingHorizontal: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    previewTop: {
+      paddingTop: spacing.xl,
+    },
 
-  previewBottomArea: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxxl,
-  },
+    previewTitle: {
+      color: colors.white,
+      fontSize: 22,
+      fontWeight: '800',
+    },
 
-  previewText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: spacing.lg,
-    textAlign: 'center',
-  },
+    previewSubtitle: {
+      color: colors.white,
+      opacity: 0.85,
+      marginTop: 6,
+    },
 
-  previewActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
+    analysisPreview: {
+      alignItems: 'center',
+      width: '100%',
+    },
 
-  retakeButton: {
-    minWidth: 130,
-    minHeight: 52,
-    paddingHorizontal: spacing.xl,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    analysisLabel: {
+      color: colors.white,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 1,
+      marginBottom: spacing.sm,
+    },
 
-  retakeButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
+    analysisImageFrame: {
+      width: '88%',
+      aspectRatio: 1.25,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      borderRadius: 14,
+      overflow: 'hidden',
+      backgroundColor: 'rgba(0,0,0,0.7)',
+    },
 
-  usePhotoButton: {
-    minWidth: 130,
-    minHeight: 52,
-    paddingHorizontal: spacing.xl,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    analysisImage: {
+      width: '100%',
+      height: '100%',
+    },
 
-  usePhotoButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+    analysisHint: {
+      color: colors.white,
+      opacity: 0.8,
+      fontSize: 11,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+    },
 
-  centered: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
+    previewBottom: {
+      alignItems: 'center',
+    },
 
-  title: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
+    actionRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
 
-  description: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 21,
-    textAlign: 'center',
-    marginTop: spacing.md,
-    marginBottom: spacing.xl,
-  },
+    primaryButton: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+    },
 
-  button: {
-    minHeight: 52,
-    paddingHorizontal: spacing.xl,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+    primaryButtonText: {
+      color: colors.white,
+      fontWeight: '800',
+    },
 
-  buttonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
+    secondaryButton: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: 14,
+      backgroundColor: 'rgba(0,0,0,0.65)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.5)',
+    },
+
+    secondaryButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+    },
+
+    errorText: {
+      color: '#FFB4B4',
+      textAlign: 'center',
+      marginBottom: spacing.md,
+    },
+  });
